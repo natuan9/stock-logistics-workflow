@@ -8,3 +8,4 @@
 - Denis Roussel \<<denis.roussel@acsone.eu>\>
 - [APSL](https://apsl.tech):
   - Antoni Marroig  \<<amarroig@apsl.net>\>
+- `Heliconia Solutions Pvt. Ltd. <https://www.heliconia.io>`_
