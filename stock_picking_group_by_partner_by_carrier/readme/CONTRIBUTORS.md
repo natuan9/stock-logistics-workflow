@@ -3,5 +3,8 @@
   - Thierry Ducrest \<<thierry.ducrest@camptocamp.com>\>
 - BCIM:
   - Jacques-Etienne Baudoux \<<je@bcim.be>\>
-- Phuc Tran Thanh \<<phuc@trobz.com>\>
 - Denis Roussel \<<denis.roussel@acsone.eu>\>
+
+- [Trobz](https://trobz.com):
+  - Tuan Nguyen \<<tuanna@trobz.com>\>
+  - Phuc Tran Thanh \<<phuc@trobz.com>\>

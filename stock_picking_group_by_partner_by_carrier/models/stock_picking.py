@@ -4,7 +4,7 @@
 
 from itertools import groupby
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.fields import first
 
 
@@ -113,9 +113,9 @@ class StockPicking(models.Model):
         group."""
         sales = move_groups.sale_id
         partners = move_groups.sale_id.partner_id
-        name = _("Merged procurement")
+        name = self.env._("Merged procurement")
         if partners:
-            name = _(
+            name = self.env._(
                 "Merged procurement for partners: %(partners_name)s",
                 partners_name=", ".join(partners.mapped("display_name")),
             )
