@@ -4,14 +4,8 @@
         <field name="model">stock.picking.merge</field>
         <field name="arch" type="xml">
             <form string="Mass Action for the selected stock picking">
-                <field name="nothing_todo" invisible="1" />
-                <field
-                    name="details"
-                    nolabel="1"
-                    attrs="{'invisible': [('nothing_todo', '=', True)]}"
-                />
+                <field name="details" nolabel="1" invisible="nothing_todo == True" />
                 <group name="valid_pickings">
-                    <field name="selected_picking_ids" invisible="1" />
                     <separator string="Valid pickings" colspan="4" />
                     <field name="valid_picking_ids" nolabel="1" colspan="4">
                         <tree>
@@ -27,7 +21,7 @@
                 </group>
                 <group
                     name="discarded_pickings"
-                    attrs="{'invisible': [('discarded_picking_ids', '=', False)]}"
+                    invisible="discarded_picking_ids == False"
                 >
                     <separator
                         string="Some pickings you've selected are discarded"
@@ -42,7 +36,7 @@
                         name="discarded_picking_ids"
                         nolabel="1"
                         colspan="4"
-                        attrs="{'invisible': [('show_discarded_detail', '=', False)]}"
+                        invisible="show_discarded_detail == False"
                     >
                         <tree>
                             <field name="name" />
@@ -62,9 +56,9 @@
                         string="Confirm"
                         type="object"
                         class="oe_highlight"
-                        attrs="{'invisible': [('nothing_todo', '=', True)]}"
+                        invisible="nothing_todo = True"
                     />
-                    <span attrs="{'invisible': [('nothing_todo', '=', True)]}">or</span>
+                    <span invisible="nothing_todo = True">or</span>
                     <button string="Cancel" class="oe_link" special="cancel" />
                 </footer>
             </form>

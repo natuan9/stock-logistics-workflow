@@ -4,7 +4,7 @@
 
 from itertools import groupby
 
-from odoo import _, api, exceptions, fields
+from odoo import api, exceptions, fields
 from odoo.models import TransientModel
 from odoo.tools import DotDict
 
@@ -128,14 +128,14 @@ class StockPickingMergeWizard(TransientModel):
     def action_merge(self):
         self.ensure_one()
         if self.nothing_todo:
-            raise exceptions.UserError(_("No picking can be merged!"))
+            raise exceptions.UserError(self.env._("No picking can be merged!"))
         moves = self.valid_picking_ids.mapped("move_ids")
         moves.write({"picking_id": False})
         moves.with_context(picking_manual_merge=True)._assign_picking()
         # Cancel old pickings left w/out moves if needed
         self.valid_picking_ids._check_emptyness_after_merge()
         return {
-            "name": _("Grouped pickings"),
+            "name": self.env._("Grouped pickings"),
             "domain": [("id", "in", moves.mapped("picking_id").ids)],
             "res_model": "stock.picking",
             "type": "ir.actions.act_window",

@@ -122,13 +122,18 @@ Contributors
 
   - Jacques-Etienne Baudoux <je@bcim.be>
 
-- Phuc Tran Thanh <phuc@trobz.com>
 - Denis Roussel <denis.roussel@acsone.eu>
+
+- `Trobz <https://trobz.com>`__:
+
+  - Tuan Nguyen <tuanna@trobz.com>
+  - Phuc Tran Thanh <phuc@trobz.com>
 
 Other credits
 -------------
 
-The development of this module has been financially supported by:
+The development and the migration of this module from 16.0 to 18.0 has
+been financially supported by:
 
 - Camptocamp
 

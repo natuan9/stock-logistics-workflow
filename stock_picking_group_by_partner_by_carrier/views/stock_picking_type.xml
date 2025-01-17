@@ -9,7 +9,7 @@
                 <field
                     name="group_pickings"
                     groups="base.group_no_one"
-                    attrs="{'invisible': [('code', '!=', 'outgoing')]}"
+                    invisible="code != 'outgoing'"
                 />
             </field>
         </field>
