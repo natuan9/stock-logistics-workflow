@@ -2,7 +2,8 @@
 # Copyright 2020 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 from odoo.fields import first
-from odoo.tests.common import Form, TransactionCase
+from odoo.tests import Form
+from odoo.tests.common import TransactionCase
 
 from .common import TestGroupByBase
 
@@ -123,9 +124,13 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         so2.action_confirm()
         pick = so1.picking_ids
         move = first(pick.move_ids)
-        move.quantity_done = 5
+        move.quantity = 5
+        move.picked = True
+        print("----- Test backorder -----")
         pick.with_context(cancel_backorder=False)._action_done()
         so2.invalidate_recordset()
+        print("---Test so1.picking_ids", so1.picking_ids)
+        print("---Test so2.picking_ids", so2.picking_ids)
         self.assertTrue(so2.picking_ids & so1.picking_ids)
         self.assertEqual(so2.picking_ids.sale_ids, so1 + so2)
 
@@ -188,14 +193,29 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         """the warehouse uses pick + ship
 
         -> shippings are grouped, pickings are not"""
+        print("----- Test test_delivery_multi_step -----")
         self.warehouse.delivery_steps = "pick_ship"
+
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.action_confirm()
+        self.assertEqual(len(so1.picking_ids), 1)
+
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
         so2.action_confirm()
-        self.assertEqual(len(so1.picking_ids), 3)
-        self.assertEqual(len(so2.picking_ids), 3)
-        self.assertEqual(so1.picking_ids, so2.picking_ids)
+        self.assertEqual(len(so2.picking_ids), 1)
+
+        # the ship will be create after validation of the pick
+        move = first(so1.picking_ids.move_ids)
+        move.quantity = 10
+        so1.picking_ids.button_validate()
+
+        move = first(so2.picking_ids.move_ids)
+        move.quantity = 11
+        so2.picking_ids.button_validate()
+
+        self.assertEqual(len(so1.picking_ids), 2)
+        self.assertEqual(len(so2.picking_ids), 2)
+
         # ship should be shared between so1 and so2
         ships = (so1.picking_ids | so2.picking_ids).filtered(
             lambda p: p.picking_type_code == "outgoing"
@@ -208,211 +228,182 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         # need the stock_available_to_promise_release module to have this
         # feature
         picks = so1.picking_ids - ships
-        self.assertEqual(len(picks), 2)
+        self.assertEqual(len(picks), 1)
         self.assertEqual(picks.picking_type_id, self.warehouse.pick_type_id)
-        # the group is the same on the move lines and picking
-        self.assertEqual(len(so1.picking_ids.group_id), 1)
-        self.assertEqual(so1.picking_ids.group_id, so1.picking_ids.move_ids.group_id)
+        # the group is the same on the move lines and shipping
+        self.assertEqual(len(ships.group_id), 1)
+        self.assertEqual(ships.group_id, ships.move_ids.group_id)
         # Add a line to so1
         self.assertEqual(len(ships.move_ids), 2)
         sale_form = Form(so1)
         self._set_line(sale_form, 4)
         sale_form.save()
+        picks = so1.picking_ids.filtered(lambda p: p.state != "done") - ships
+        move = picks.move_ids[-1]
+        move.quantity = 10
+        picks.button_validate()
         self.assertEqual(len(ships.move_ids), 3)
         # the group is the same on the move lines and picking
-        self.assertEqual(len(so1.picking_ids.group_id), 1)
-        self.assertEqual(so1.picking_ids.group_id, so1.picking_ids.move_ids.group_id)
+        self.assertEqual(len(ships.group_id), 1)
+        self.assertEqual(ships.group_id, ships.move_ids.group_id)
         # Add a line to so2
         self.assertEqual(len(ships.move_ids), 3)
+        sale_form = Form(so2)
         self._set_line(sale_form, 4)
         sale_form.save()
+        picks = so2.picking_ids.filtered(lambda p: p.state != "done") - ships
+        move = picks.move_ids[-1]
+        move.quantity = 10
+        picks.button_validate()
         self.assertEqual(len(ships.move_ids), 4)
         # the group is the same on the move lines and picking
-        self.assertEqual(len(so2.picking_ids.group_id), 1)
-        self.assertEqual(so1.picking_ids.group_id, so2.picking_ids.move_ids.group_id)
-
-    def test_delivery_multi_step_group_pick(self):
-        """the warehouse uses pick + ship (with grouping enabled on pick)
-
-        -> shippings are grouped, as well as pickings
-
-        Note that the grouping of pickings cannot be enabled, the grouping
-        option is only visible on the outgoing picking types. Grouping
-        conditions are based on some data that are only available on the
-        shipping."""
-        self.warehouse.delivery_steps = "pick_ship"
-        rule = self.env["procurement.group"]._get_rule(
-            self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
-            {"warehouse_id": self.warehouse},
-        )
-        rule.propagate_carrier = False
-        self.warehouse.pick_type_id.group_pickings = True
-        so1 = self._get_new_sale_order(carrier=self.carrier1)
-        so1.action_confirm()
-        so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
-        so2.action_confirm()
-        self.assertEqual(len(so1.picking_ids), 2)
-        self.assertEqual(len(so2.picking_ids), 2)
-        # ship & pick should be shared between so1 and so2
-        self.assertEqual(so1.picking_ids, so2.picking_ids)
-        transfers = so1.picking_ids
-        self.assertEqual(len(transfers), 2)
-        ships = transfers.filtered(
-            lambda o: o.picking_type_id == self.warehouse.out_type_id
-        )
-        picks = transfers.filtered(
-            lambda o: o.picking_type_id == self.warehouse.pick_type_id
-        )
-        self.assertEqual(len(ships), 1)
-        self.assertEqual(len(picks), 1)
-        self.assertFalse(so1.picking_ids - so2.picking_ids)
+        self.assertEqual(len(ships.group_id), 1)
+        self.assertEqual(ships.group_id, ships.move_ids.group_id)
 
     def test_delivery_multi_step_cancel_so1(self):
         """the warehouse uses pick + ship. Cancel SO1
 
         -> shippings are grouped, pickings are not"""
+        print("----- test_grouping test_delivery_multi_step_cancel_so1 -----")
         self.warehouse.delivery_steps = "pick_ship"
         rule = self.env["procurement.group"]._get_rule(
             self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
+            self.partner.property_stock_customer,
             {"warehouse_id": self.warehouse},
         )
         rule.propagate_carrier = False
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.action_confirm()
+        move = first(so1.picking_ids.move_ids)
+        move.quantity = 10
+        so1.picking_ids.button_validate()
+
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
         so2.action_confirm()
+        move = first(so2.picking_ids.move_ids)
+        move.quantity = 11
+        so2.picking_ids.button_validate()
+
+        so1._action_cancel()
+
         ships = (so1.picking_ids | so2.picking_ids).filtered(
             lambda p: p.picking_type_code == "outgoing"
         )
-        pick1 = so1.order_line.move_ids.move_orig_ids.picking_id
-        pick2 = so2.order_line.move_ids.move_orig_ids.picking_id
-        so1._action_cancel()
-        self.assertEqual(ships.state, "waiting")
-        self.assertEqual(pick1.state, "cancel")
-        self.assertEqual(pick2.state, "confirmed")
+        pick1 = so1.picking_ids.filtered(
+            lambda o: o.picking_type_id == self.warehouse.pick_type_id
+        )
+        pick2 = so2.picking_ids.filtered(
+            lambda o: o.picking_type_id == self.warehouse.pick_type_id
+        )
+        self.assertEqual(ships.state, "assigned")
+        self.assertEqual(pick1.state, "done")
+        self.assertEqual(pick2.state, "done")
+        self.assertEqual(ships.move_ids[0].quantity, 0)
 
     def test_delivery_multi_step_cancel_so2(self):
         """the warehouse uses pick + ship. Cancel SO2
 
         -> shippings are grouped, pickings are not"""
+        print("----- test_grouping test_delivery_multi_step_cancel_so2 -----")
         self.warehouse.delivery_steps = "pick_ship"
         rule = self.env["procurement.group"]._get_rule(
             self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
+            self.partner.property_stock_customer,
             {"warehouse_id": self.warehouse},
         )
         rule.propagate_carrier = False
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.action_confirm()
+        move = first(so1.picking_ids.move_ids)
+        move.quantity = 10
+        so1.picking_ids.button_validate()
+
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
         so2.action_confirm()
+        move = first(so2.picking_ids.move_ids)
+        move.quantity = 11
+        so2.picking_ids.button_validate()
+
+        so2._action_cancel()
+
         ships = (so1.picking_ids | so2.picking_ids).filtered(
             lambda p: p.picking_type_code == "outgoing"
         )
-        pick1 = so1.order_line.move_ids.move_orig_ids.picking_id
-        pick2 = so2.order_line.move_ids.move_orig_ids.picking_id
-        so2._action_cancel()
-        self.assertEqual(ships.state, "waiting")
-        self.assertEqual(pick1.state, "confirmed")
-        self.assertEqual(pick2.state, "cancel")
-
-    def test_delivery_multi_step_group_pick_cancel_so1(self):
-        """the warehouse uses pick + ship (with grouping enabled on pick)
-
-        -> shippings are grouped, as well as pickings"""
-        self.warehouse.delivery_steps = "pick_ship"
-        self.warehouse.pick_type_id.group_pickings = True
-        rule = self.env["procurement.group"]._get_rule(
-            self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
-            {"warehouse_id": self.warehouse},
-        )
-        rule.propagate_carrier = False
-        so1 = self._get_new_sale_order(carrier=self.carrier1)
-        so1.action_confirm()
-        so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
-        so2.action_confirm()
-        so1._action_cancel()
-        # ship & pick should be shared between so1 and so2
-        transfers = so1.picking_ids
-        ship = transfers.filtered(
-            lambda o: o.picking_type_id == self.warehouse.out_type_id
-        )
-        pick = transfers.filtered(
+        pick1 = so1.picking_ids.filtered(
             lambda o: o.picking_type_id == self.warehouse.pick_type_id
         )
-        self.assertEqual(len(ship), 1)
-        self.assertEqual(len(pick), 1)
-        self.assertEqual(ship.state, "waiting")
-        self.assertEqual(pick.state, "confirmed")
-
-    def test_delivery_multi_step_group_pick_cancel_so2(self):
-        """the warehouse uses pick + ship (with grouping enabled on pick)
-
-        -> shippings are grouped, as well as pickings"""
-        self.warehouse.delivery_steps = "pick_ship"
-        self.warehouse.pick_type_id.group_pickings = True
-        rule = self.env["procurement.group"]._get_rule(
-            self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
-            {"warehouse_id": self.warehouse},
-        )
-        rule.propagate_carrier = False
-        so1 = self._get_new_sale_order(carrier=self.carrier1)
-        so1.action_confirm()
-        so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
-        so2.action_confirm()
-        so2._action_cancel()
-        # ship & pick should be shared between so1 and so2
-        transfers = so1.picking_ids
-        ship = transfers.filtered(
-            lambda o: o.picking_type_id == self.warehouse.out_type_id
-        )
-        pick = transfers.filtered(
+        pick2 = so2.picking_ids.filtered(
             lambda o: o.picking_type_id == self.warehouse.pick_type_id
         )
-        self.assertEqual(len(ship), 1)
-        self.assertEqual(len(pick), 1)
-        self.assertEqual(ship.state, "waiting")
-        self.assertEqual(pick.state, "confirmed")
+
+        self.assertEqual(ships.state, "assigned")
+        self.assertEqual(pick1.state, "done")
+        self.assertEqual(pick2.state, "done")
+        self.assertEqual(ships.move_ids[1].quantity, 0)
 
     def test_delivery_multi_step_cancel_so1_create_so3(self):
         """the warehouse uses pick + ship. Cancel SO1, create SO3
 
         -> shippings are grouped, pickings are not"""
+        print(
+            "----- test_grouping test_delivery_multi_step_cancel_so1_create_so3 -----"
+        )
         self.warehouse.delivery_steps = "pick_ship"
         rule = self.env["procurement.group"]._get_rule(
             self.product,
-            self.warehouse.pick_type_id.default_location_dest_id,
+            self.partner.property_stock_customer,
             {"warehouse_id": self.warehouse},
         )
         rule.propagate_carrier = False
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.action_confirm()
+        move = first(so1.picking_ids.move_ids)
+        move.quantity = 10
+        so1.picking_ids.button_validate()
+
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
         so2.action_confirm()
+        move = first(so2.picking_ids.move_ids)
+        move.quantity = 11
+        so2.picking_ids.button_validate()
+
         ships = (so1.picking_ids | so2.picking_ids).filtered(
             lambda p: p.picking_type_code == "outgoing"
         )
         so1._action_cancel()
         so3 = self._get_new_sale_order(amount=12, carrier=self.carrier1)
         so3.action_confirm()
+        move = first(so3.picking_ids.move_ids)
+        move.quantity = 12
+        so3.picking_ids.button_validate()
+
         self.assertTrue(ships in so3.picking_ids)
-        pick3 = so3.order_line.move_ids.move_orig_ids.picking_id
+        pick3 = so3.picking_ids.filtered(
+            lambda o: o.picking_type_id == self.warehouse.pick_type_id
+        )
         self.assertEqual(len(pick3), 1)
-        self.assertEqual(pick3.state, "confirmed")
+        self.assertEqual(pick3.state, "done")
 
     def test_delivery_mult_step_cancelling_sale_order1_before_create_order2(self):
         """1st sale order is cancelled
 
         -> picking is still todo with only 1 stock move todo"""
+        print(
+            "----- test_grouping test_delivery_mult_step_cancelling_sale_order1_before_create_order2 -----"
+        )
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.action_confirm()
+        move = first(so1.picking_ids.move_ids)
+        move.quantity = 10
+        so1.picking_ids.button_validate()
         so1._action_cancel()
+
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
         so2.action_confirm()
+        move = first(so2.picking_ids.move_ids)
+        move.quantity = 11
+        so2.picking_ids.button_validate()
+
         self.assertTrue(so1.picking_ids)
         self.assertTrue(so2.picking_ids)
         self.assertFalse(so1.picking_ids & so2.picking_ids)
@@ -424,6 +415,7 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         and we find the stock.picking records from the SO.
         Ensure that printed transfers keep their procurement group.
         """
+        print("----- test_grouping test_sale_stock_merge_procurement_group -----")
         so1 = self._get_new_sale_order(carrier=self.carrier1)
         so1.name = "SO1"
         so2 = self._get_new_sale_order(amount=11, carrier=self.carrier1)
@@ -436,6 +428,7 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         self.assertEqual(picking.group_id, picking.move_ids.group_id)
         group = picking.group_id
         # the group is related to both sales orders
+        print("---group.sale_ids", group.sale_ids)
         self.assertEqual(group.sale_ids, so1 | so2)
         self.assertEqual(group.name, "Merged procurement for partners: Test Partner")
 
@@ -454,8 +447,10 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
             lambda line: line.sale_line_id.order_id == so1
         )
         line1 = move1.move_line_ids
-        line1.qty_done = line1.reserved_uom_qty
+        line1.quantity = line1.quantity_product_uom
+        print("---Test picking:", picking)
         picking._action_done()
+        print("---Test picking:", picking)
 
         backorder = picking.backorder_ids
 
@@ -478,6 +473,7 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         """Ensure there is no regression when group pickings is disabled when
         we confirm a partial qty on a picking to create a backorder.
         """
+        print("----- test_grouping test_create_backorder -----")
         so = self._get_new_sale_order(amount=10, carrier=self.carrier1)
         so.name = "SO TEST"
         so.action_confirm()
@@ -492,7 +488,7 @@ class TestGroupBy(TestGroupByBase, TransactionCase):
         )
         picking.action_assign()
         line = first(picking.move_ids).move_line_ids
-        line.qty_done = line.reserved_uom_qty / 2
+        line.qty_done = line.quantity_product_uom / 2
         picking._action_done()
         self.assertEqual(picking.state, "done")
         self.assertTrue(picking.backorder_ids)

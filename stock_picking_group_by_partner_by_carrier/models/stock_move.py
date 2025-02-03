@@ -49,6 +49,7 @@ class StockMove(models.Model):
         return result
 
     def _assign_picking_post_process(self, new=False):
+        print("--------Test _assign_picking_post_process--------")
         moves_by_picking = groupby(
             sorted(self, key=lambda m: m.picking_id.id), key=lambda m: m.picking_id
         )
@@ -64,13 +65,14 @@ class StockMove(models.Model):
     def _on_assign_picking_message_link(self):
         sales = self.sale_line_id.order_id
         if sales:
-            self.picking_id.message_post_with_view(
+            self.picking_id.message_post_with_source(
                 "mail.message_origin_link",
-                values={"self": self.picking_id, "origin": sales, "edit": True},
-                subtype_id=self.env.ref("mail.mt_note").id,
+                render_values={"self": self.picking_id, "origin": sales, "edit": True},
+                subtype_xmlid="mail.mt_note",
             )
 
     def _search_picking_for_assignation_domain(self):
+        print("--------Test _search_picking_for_assignation_domain--------")
         domain = super()._search_picking_for_assignation_domain()
         if (
             not self.picking_type_id.group_pickings
@@ -89,6 +91,7 @@ class StockMove(models.Model):
     # TODO: this part and everything related to generic grouping
     # should be split into `stock_picking_group_by` module.
     def _assign_picking_group_domain(self):
+        print("--------Test _assign_picking_group_domain--------")
         domain = [
             # same partner
             ("partner_id", "=", self.group_id.partner_id.id),

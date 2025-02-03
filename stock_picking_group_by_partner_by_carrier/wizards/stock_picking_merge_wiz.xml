@@ -8,7 +8,7 @@
                 <group name="valid_pickings">
                     <separator string="Valid pickings" colspan="4" />
                     <field name="valid_picking_ids" nolabel="1" colspan="4">
-                        <tree>
+                        <list>
                             <field name="name" />
                             <field name="partner_id" />
                             <field name="carrier_id" />
@@ -16,7 +16,7 @@
                             <field name="location_dest_id" optional="hide" />
                             <field name="picking_type_id" optional="hide" />
                             <field name="state" />
-                        </tree>
+                        </list>
                     </field>
                 </group>
                 <group
@@ -38,7 +38,7 @@
                         colspan="4"
                         invisible="show_discarded_detail == False"
                     >
-                        <tree>
+                        <list>
                             <field name="name" />
                             <field name="partner_id" />
                             <field name="carrier_id" />
@@ -47,7 +47,7 @@
                             <field name="picking_type_id" optional="hide" />
                             <field name="state" />
                             <field name="printed" />
-                        </tree>
+                        </list>
                     </field>
                 </group>
                 <footer>
@@ -56,9 +56,9 @@
                         string="Confirm"
                         type="object"
                         class="oe_highlight"
-                        invisible="nothing_todo = True"
+                        invisible="nothing_todo == True"
                     />
-                    <span invisible="nothing_todo = True">or</span>
+                    <span invisible="nothing_todo == True">or</span>
                     <button string="Cancel" class="oe_link" special="cancel" />
                 </footer>
             </form>

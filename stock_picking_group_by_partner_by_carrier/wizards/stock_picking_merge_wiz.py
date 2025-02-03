@@ -140,6 +140,6 @@ class StockPickingMergeWizard(TransientModel):
             "res_model": "stock.picking",
             "type": "ir.actions.act_window",
             "view_id": False,
-            "view_mode": "tree,form",
+            "view_mode": "list,form",
             "context": self.env.context,
         }

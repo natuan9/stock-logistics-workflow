@@ -86,11 +86,14 @@ class StockPicking(models.Model):
             return super().action_cancel()
 
     def _create_backorder(self):
+        print("---Test _create_backorder---")
         backorders = self.browse()
         for picking in self:
             if not picking._is_grouping_disabled():
                 picking = picking.with_context(picking_no_copy_if_can_group=1)
             backorder = super(StockPicking, picking)._create_backorder()
+            print("backorder: ", backorder)
+            print("backorder.move_ids: ", picking._is_grouping_disabled())
             if backorder and not picking._is_grouping_disabled():
                 backorder._merge_procurement_groups()
                 backorder._update_merged_origin()
@@ -106,26 +109,38 @@ class StockPicking(models.Model):
         return " ".join(origins)
 
     def _update_merged_origin(self):
+        print("--------Test _update_merged_origin--------")
         self.origin = self._prepare_merged_origin()
 
     def _prepare_merge_procurement_group_values(self, move_groups):
         """Build a new procurement group that is the merge of given procurement
         group."""
+        print("--------Test _prepare_merge_procurement_group_values--------")
         sales = move_groups.sale_id
+        print("sales.ids: ", sales.ids)
         partners = move_groups.sale_id.partner_id
         name = self.env._("Merged procurement")
         if partners:
             name = self.env._(
                 "Merged procurement for partners: %(partners_name)s",
-                partners_name=", ".join(partners.mapped("display_name")),
+                partners_name=", ".join(partners.mapped("name")),
             )
         return {"sale_ids": [(6, 0, sales.ids)], "name": name}
 
+    # def _is_multi_step_pick(self):
+    #     result = self.picki
+    #     return result
+
     def _merge_procurement_groups(self):
+        print("--------Test _merge_procurement_groups--------")
         self.ensure_one()
+        # if self._is_multi_step_pick():
+        #     print("---Test _is_multi_step_pick")
         if self._is_grouping_disabled():
+            print("---Test False 1")
             return False
         if self.picking_type_id.code != "outgoing":
+            print("---Test False 2")
             return False
         group_pickings = self.move_ids.group_id.picking_ids.filtered(
             # Do no longer modify a printed or done transfer: they are
@@ -145,6 +160,7 @@ class StockPicking(models.Model):
                 self._prepare_merge_procurement_group_values(moves.original_group_id)
             )
             group_pickings.move_ids.group_id = new_group
+            print("---Test True 1")
             return True
 
         new_moves = moves.filtered(lambda move: move.group_id != base_group)
@@ -165,14 +181,17 @@ class StockPicking(models.Model):
                     )
                 )
                 group_pickings.move_ids.group_id = new_group
+                print("---Test True 2")
                 return True
 
             base_group.write(
                 self._prepare_merge_procurement_group_values(moves.original_group_id)
             )
             new_moves.group_id = base_group
+            print("---Test True 3")
             return True
         new_moves.group_id = base_group
+        print("---Test False 3")
         return False
 
     def copy(self, defaults=None):
@@ -222,7 +241,7 @@ class StockPicking(models.Model):
         self.ensure_one()
         moves = self._get_sorted_moves()
         if not self._delivery_report_state_is_done():
-            moves = moves.filtered("reserved_availability")
+            moves = moves.filtered("quantity")
 
         if len(moves.mapped("sale_line_id.order_id")) > 1:
             grouped_moves = self._group_moves_by_order(moves)
@@ -248,7 +267,7 @@ class StockPicking(models.Model):
                 return sales_and_moves
             else:
                 sales_and_moves = self.env["stock.move.line"]
-                fake_record["reserved_uom_qty"] = fake_record.pop("product_uom_qty")
+                fake_record["quantity"] = fake_record.pop("product_uom_qty")
                 fake_record["product_uom_id"] = fake_record.pop("product_uom")
                 for sale, sale_moves in grouped_moves:
                     if sale:
