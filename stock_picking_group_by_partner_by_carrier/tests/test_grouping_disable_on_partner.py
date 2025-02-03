@@ -64,7 +64,7 @@ class TestGroupByDisabledOnPartner(TestGroupByBase, TransactionCase):
         so2.action_confirm()
         pick = so1.picking_ids
         move = first(pick.move_ids)
-        move.quantity_done = 5
+        move.quantity = 5
         pick.with_context(cancel_backorder=False)._action_done()
         self.assertFalse(so2.picking_ids & so1.picking_ids)
         self.assertEqual(so2.picking_ids.sale_ids, so2)
@@ -289,7 +289,7 @@ class TestGroupByDisabledOnPartner(TestGroupByBase, TransactionCase):
         )
         picking.action_assign()
         line = first(picking.move_ids).move_line_ids
-        line.qty_done = line.reserved_uom_qty / 2
+        line.qty_done = line.quantity_product_uom / 2
         picking._action_done()
         self.assertEqual(picking.state, "done")
         self.assertTrue(picking.backorder_ids)

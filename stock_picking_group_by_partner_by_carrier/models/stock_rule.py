@@ -36,4 +36,5 @@ class StockRule(models.Model):
             values.get("move_dest_ids", self.env["stock.move"]).original_group_id.id
             or move_values["group_id"]
         )
+        print("---Test move_values", move_values["original_group_id"])
         return move_values

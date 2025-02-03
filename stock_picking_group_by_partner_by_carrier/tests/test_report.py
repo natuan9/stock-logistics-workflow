@@ -11,6 +11,7 @@ class TestReport(TestGroupByBase, TransactionCase):
         for other_location in self.env["stock.location"].search(
             [("usage", "!=", "view"), ("id", "!=", location.id)]
         ):
+            print("---Test product", product)
             self._update_qty_in_location(other_location, product, 0)
         self._update_qty_in_location(location, product, qty)
         self.assertEqual(product.qty_available, qty)
@@ -141,9 +142,9 @@ class TestReport(TestGroupByBase, TransactionCase):
         self.assertTrue(res[3].id)
         # Deliver and test again
         line = picking.move_ids[0].move_line_ids
-        line.qty_done = line.reserved_uom_qty
+        line.qty_done = line.quantity_product_uom
         line = picking.move_ids[1].move_line_ids
-        line.qty_done = line.reserved_uom_qty
+        line.qty_done = line.quantity_product_uom
         res = picking._action_done()
         self.assertEqual(picking.state, "done")
         res = picking.get_delivery_report_lines()
